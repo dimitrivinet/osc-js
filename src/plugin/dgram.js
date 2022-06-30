@@ -32,13 +32,24 @@ const defaultSendOptions = {
 }
 
 /**
+ * Default options for multicasting
+ * @private
+ */
+ const defaultMulticastOptions = {
+  ttl: 1,
+  loopback: false,
+}
+
+/**
  * Default options
  * @private
  */
 const defaultOptions = {
   type: 'udp4',
+  routing: "unicast",
   open: defaultOpenOptions,
   send: defaultSendOptions,
+  multicast: defaultMulticastOptions,
 }
 
 /**
@@ -52,6 +63,7 @@ function mergeOptions(base, custom) {
     ...custom,
     open: { ...defaultOptions.open, ...base.open, ...custom.open },
     send: { ...defaultOptions.send, ...base.send, ...custom.send },
+    multicast: { ...defaultOptions.multicast, ...base.multicast, ...custom.multicast },
   }
 }
 
@@ -93,6 +105,15 @@ export default class DatagramPlugin {
      * @private
      */
     this.socket = dgram.createSocket(this.options.type)
+    if (["multicast", "broadcast"].includes(this.options.send.routing)) {
+      this.socket.setBroadcast(true)
+
+      if (this.options.send.routing === "multicast") {
+        this.socket.setMulticastTTL(this.options.multicast.ttl)
+        this.socket.setMulticastLoopback(this.options.multicast.loopback)
+      }
+    }
+
     /**
      * @type {number} socketStatus
      * @private
@@ -112,7 +133,7 @@ export default class DatagramPlugin {
      * @type {function} notify
      * @private
      */
-    this.notify = () => {}
+    this.notify = () => { }
   }
 
   /**
@@ -145,6 +166,10 @@ export default class DatagramPlugin {
     const { port, exclusive } = options
 
     this.socketStatus = STATUS.IS_CONNECTING
+
+    if (this.options.routing === "multicast") {
+      this.socket.addMembership(this.options.send.address)
+    }
 
     this.socket.bind({
       address: options.host,
